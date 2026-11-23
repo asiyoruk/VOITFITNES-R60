@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Voit R60 – Akıllı Egzersiz Paneli</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#060a11">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Manrope:wght@400;500;700&display=swap">
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<style>
+:root{color-scheme:dark;--bg:#060a11;--panel:#0d1420;--line:#1a2840;--g:#2dff9a;--b:#27c8ff;--tx:#e8f1f8;--mu:#7f93a8;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{background:radial-gradient(900px 500px at 85% -10%,rgba(39,200,255,.12),transparent 60%),radial-gradient(700px 500px at 0% 0%,rgba(45,255,154,.08),transparent 60%),var(--bg);color:var(--tx);font-family:'Manrope',system-ui,sans-serif;min-height:100vh}
+.num{font-family:'Barlow Condensed','Arial Narrow',sans-serif;font-weight:700;letter-spacing:.01em;font-variant-numeric:tabular-nums}
+.panel{background:linear-gradient(180deg,rgba(255,255,255,.025),transparent),var(--panel);border:1px solid var(--line);border-radius:18px}
+.neon{color:var(--g);text-shadow:0 0 18px rgba(45,255,154,.45)}
+.grad{background:linear-gradient(90deg,var(--g),var(--b))}
+.btn{transition:transform .12s,opacity .12s}.btn:active{transform:scale(.96)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--b);outline-offset:2px}
+@keyframes ecg{to{transform:translateX(-200px)}}
+@keyframes beat{0%,100%{transform:scale(1)}15%{transform:scale(1.28)}30%{transform:scale(1)}45%{transform:scale(1.14)}}
+@keyframes pop{from{transform:translateY(20px);opacity:0}to{transform:none;opacity:1}}
+.toast{animation:pop .3s ease-out}
+input[type=range]{accent-color:var(--g)}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/htm@3.1.1/dist/htm.umd.js"></script>
+<script>
+const {useState,useEffect,useRef}=React;
+const html=htm.bind(React.createElement);
+
+const P={
+play:'<polygon points="6 3 20 12 6 21 6 3"/>',
+pause:'<rect x="14" y="4" width="4" height="16" rx="1"/><rect x="6" y="4" width="4" height="16" rx="1"/>',
+reset:'<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>',
+flame:'<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.4-.5-2-1-3-1.1-2.1-.2-4 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.2.4-2.4 1-3 0 1.4 1 2.5 2.5 2.5z"/>',
+heart:'<path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3 .5-4.5 2-1.5-1.5-2.7-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7z"/>',
+zap:'<path d="M13 2 3 14h9l-1 8 10-12h-9z"/>',
+pin:'<path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/>',
+gauge:'<path d="m12 14 4-4"/><path d="M3.3 19a10 10 0 1 1 17.4 0"/>',
+timer:'<path d="M10 2h4"/><path d="M12 14l3-3"/><circle cx="12" cy="14" r="8"/>',
+trophy:'<path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M18 2H6v7a6 6 0 0 0 12 0z"/>',
+lock:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+plus:'<path d="M5 12h14M12 5v14"/>',
+minus:'<path d="M5 12h14"/>',
+rpm:'<circle cx="12" cy="12" r="9"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/>',
+};
+const Icon=({n,s=18,c=''})=>html`<svg width=${s} height=${s} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" className=${c} aria-hidden="true" dangerouslySetInnerHTML=${{__html:P[n]}}/>`;
+
+const PROGRAMS=[
+ {id:'warm',name:'Isınma',en:'Warm-up',min:10,desc:'Hafif tempo, kaslar uyansın',icon:'flame',res:t=>t<420?2:3,rpm:()=>50},
+ {id:'fat',name:'Yağ Yakımı',en:'Fat Burn',min:30,desc:'Orta direnç, sabit tempo',icon:'zap',res:()=>3,rpm:()=>62},
+ {id:'hiit',name:'Kardiyo Yoğun',en:'HIIT',min:20,desc:'30 sn sert, 30 sn dinlen',icon:'heart',res:t=>t%60<30?7:2,rpm:t=>t%60<30?88:52},
+ {id:'end',name:'Dayanıklılık',en:'Endurance',min:45,desc:'Uzun süre, kademeli direnç',icon:'gauge',res:t=>t<600?3:t<1800?4:5,rpm:()=>66},
+];
+const LEVELS=['Çok hafif','Hafif','Hafif','Orta','Orta','Zor','Çok zor','Maksimum'];
+const DAYS=['Pzt','Sal','Çar','Per','Cum','Cmt','Paz'];
+const TI=(new Date().getDay()+6)%7;
+const SEED_CAL=[120,0,210,0,150,0,0], SEED_DIST=[2.6,0,4.1,0,3.0,0,0];
+const fmt=s=>{s=Math.max(0,Math.floor(s));const m=Math.floor(s/60);return String(m).padStart(2,'0')+':'+String(s%60).padStart(2,'0')};
+const zone=h=>h<100?['Dinlenme','#7f93a8']:h<125?['Yağ yakımı','#2dff9a']:h<150?['Kardiyo','#27c8ff']:['Maksimum','#ff5d73'];
+const watts=(rpm,res)=>rpm*(0.4+res*0.3)*0.75;
+
+function Tile({icon,label,value,unit,accent}){
+ return html`<div className="panel p-4 sm:p-5">
+  <div className="flex items-center gap-2 text-[13px]" style=${{color:'var(--mu)'}}><${Icon} n=${icon} s=${16} c=${accent?'':''}/>${label}</div>
+  <div className="mt-2 flex items-baseline gap-1.5"><span className="num text-5xl sm:text-6xl leading-none">${value}</span><span className="text-sm" style=${{color:'var(--mu)'}}>${unit}</span></div>
+ </div>`;
+}
+
+function Ecg({hr,running}){
+ const d='M0 32H44l6-5 6 5h10l5-26 9 52 6-26h16l8-9 8 9H200';
+ const dur=(60/Math.max(40,hr))+'s';
+ return html`<div className="relative overflow-hidden rounded-xl" style=${{background:'#08101a',border:'1px solid var(--line)'}}>
+  <svg viewBox="0 0 400 64" width="100%" height="84" preserveAspectRatio="none" aria-hidden="true">
+   <g style=${{animation:'ecg '+dur+' linear infinite',animationPlayState:running?'running':'paused'}}>
+    ${[0,200,400].map(x=>html`<path key=${x} d=${d} transform=${'translate('+x+' 0)'} fill="none" stroke="#2dff9a" stroke-width="2.2" stroke-linejoin="round" style=${{filter:'drop-shadow(0 0 4px #2dff9a)'}}/>`)}
+   </g>
+  </svg>
+  <div className="absolute inset-y-0 left-0 w-10" style=${{background:'linear-gradient(90deg,#08101a,transparent)'}}/>
+  <div className="absolute inset-y-0 right-0 w-10" style=${{background:'linear-gradient(270deg,#08101a,transparent)'}}/>
+ </div>`;
+}
+
+function Chart({mode,cal,dist,liveCal,liveDist}){
+ const vals=(mode==='cal'?cal:dist).map((v,i)=>i===TI?v+(mode==='cal'?liveCal:liveDist):v);
+ const max=Math.max(mode==='cal'?300:6,...vals)*1.15;
+ return html`<svg viewBox="0 0 350 170" width="100%" role="img" aria-label="Haftalık grafik">
+  <defs><linearGradient id="bar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2dff9a"/><stop offset="1" stop-color="#27c8ff"/></linearGradient></defs>
+  ${[0.25,0.5,0.75,1].map(f=>html`<line key=${f} x1="0" x2="350" y1=${140-f*120} y2=${140-f*120} stroke="#1a2840" stroke-dasharray="3 5"/>`)}
+  ${vals.map((v,i)=>{const h=Math.max(3,v/max*120);const x=i*50+11;const today=i===TI;
+   return html`<g key=${i}>
+    <rect x=${x} y=${140-h} width="28" height=${h} rx="6" fill=${v>0?'url(#bar)':'#142034'} opacity=${today||v===0?1:.55} style=${{transition:'all .4s'}}/>
+    ${v>0&&html`<text x=${x+14} y=${140-h-6} textAnchor="middle" fill="#e8f1f8" fontSize="11" fontWeight="700">${mode==='cal'?Math.round(v):v.toFixed(1)}</text>`}
+    <text x=${x+14} y="160" textAnchor="middle" fill=${today?'#2dff9a':'#7f93a8'} fontSize="12" fontWeight=${today?700:400}>${DAYS[i]}</text>
+   </g>`})}
+ </svg>`;
+}
+
+function App(){
+ const [running,setRunning]=useState(false);
+ const [mult,setMult]=useState(1);
+ const [res,setRes]=useState(3);
+ const [prog,setProg]=useState(null);
+ const [m,setM]=useState({t:0,rpm:0,speed:0,hr:72,cal:0,dist:0,w:0});
+ const [series,setSeries]=useState([]);
+ const [week,setWeek]=useState({cal:SEED_CAL,dist:SEED_DIST});
+ const [mode,setMode]=useState('cal');
+ const [flags,setFlags]=useState({res8:false,hr150:false});
+ const [toast,setToast]=useState(null);
+ const L=useRef({}); L.current={res,prog,mult};
+ const done=useRef({});
+
+ useEffect(()=>{
+  if(!running) return;
+  const id=setInterval(()=>{
+   const {res:r0,prog:pid,mult:dt}=L.current;
+   const p=PROGRAMS.find(x=>x.id===pid);
+   setM(o=>{
+    const t=o.t+dt;
+    let r=r0; if(p){r=p.res(t); if(r!==r0) setRes(r);}
+    const target=p?p.rpm(t):62-r*1.5;
+    const rpm=Math.max(0,Math.min(120,o.rpm+(target-o.rpm)*Math.min(1,0.35*dt)+(Math.random()-.5)*4));
+    const speed=Math.max(0,rpm*0.26+(Math.random()-.5)*.4);
+    const w=watts(rpm,r);
+    const hrT=68+w*0.55+Math.min(8,t/30);
+    const hr=Math.max(60,Math.min(195,o.hr+(hrT-o.hr)*Math.min(1,0.07*dt)+(Math.random()-.5)*2.2));
+    const nm={t,rpm,speed,hr,w,cal:o.cal+w*0.0597/60*dt,dist:o.dist+speed*dt/3600};
+    if(p&&t>=p.min*60){ setRunning(false); setToast({k:'Program tamamlandı',d:p.name+' bitti. Sıfırla’ya basıp antrenmanı kaydedebilirsin.'}); }
+    return nm;
+   });
+   setSeries(s=>[...s.slice(-39),0]);
+  },1000);
+  return ()=>clearInterval(id);
+ },[running]);
+
+ useEffect(()=>{ if(running) setSeries(s=>{const a=s.slice(); if(a.length) a[a.length-1]=m.hr; return a;}); },[m.hr]);
+ useEffect(()=>{ if(res===8&&running&&!flags.res8) setFlags(f=>({...f,res8:true})); if(m.hr>=150&&!flags.hr150) setFlags(f=>({...f,hr150:true})); },[res,m.hr,running]);
+ useEffect(()=>{ if(toast){const id=setTimeout(()=>setToast(null),4200);return()=>clearTimeout(id);} },[toast]);
+
+ const totCal=week.cal.reduce((a,b)=>a+b,0)+m.cal, totDist=week.dist.reduce((a,b)=>a+b,0)+m.dist;
+ const ACH=[
+  {id:'k5',name:'İlk 5 KM',desc:'Toplam 5 km pedalla',icon:'pin',ok:totDist>=5,pr:totDist/5},
+  {id:'k10',name:'10 KM Kulübü',desc:'Toplam 10 km’ye ulaş',icon:'route',ok:totDist>=10,pr:totDist/10},
+  {id:'cal',name:'Kalori Canavarı',desc:'Toplam 1000 kcal yak',icon:'flame',ok:totCal>=1000,pr:totCal/1000},
+  {id:'r8',name:'Direnç Ustası',desc:'8. kademede pedalla',icon:'gauge',ok:flags.res8,pr:flags.res8?1:res/8},
+  {id:'hr',name:'Nabız Avcısı',desc:'Nabzı 150 BPM’e çıkar',icon:'heart',ok:flags.hr150,pr:m.hr/150},
+  {id:'t30',name:'Yarım Saat',desc:'Tek seferde 30 dk',icon:'timer',ok:m.t>=1800,pr:m.t/1800},
+ ];
+ useEffect(()=>{ ACH.forEach(a=>{ if(a.ok&&!done.current[a.id]){ if(done.current.init) setToast({k:'Başarı açıldı: '+a.name,d:a.desc}); done.current[a.id]=1; } }); done.current.init=1; });
+
+ const p=PROGRAMS.find(x=>x.id===prog);
+ const target=(p?p.min:30)*60;
+ const pct=Math.min(100,m.t/target*100);
+ const [zn,zc]=zone(m.hr);
+ const manual=v=>{setProg(null);setRes(Math.max(1,Math.min(8,v)));};
+ const pick=pr=>{ setProg(pr.id); setRes(pr.res(m.t)); };
+ const reset=()=>{
+  if(m.t>5) setWeek(w=>({cal:w.cal.map((v,i)=>i===TI?v+m.cal:v),dist:w.dist.map((v,i)=>i===TI?v+m.dist:v)}));
+  setRunning(false); setM({t:0,rpm:0,speed:0,hr:72,cal:0,dist:0,w:0}); setSeries([]); setFlags({res8:false,hr150:false});
+  if(m.t>5) setToast({k:'Antrenman kaydedildi',d:m.cal.toFixed(0)+' kcal · '+m.dist.toFixed(2)+' km haftalık grafiğe eklendi.'});
+ };
+ const diffPct=Math.min(100,m.w/110*100);
+
+ return html`<main className="mx-auto max-w-6xl px-4 py-5 sm:py-8">
+  <header className="flex items-center justify-between gap-3 mb-5">
+   <div>
+    <div className="num text-3xl sm:text-4xl leading-none">VOIT <span className="neon">R60</span></div>
+    <div className="text-sm mt-1" style=${{color:'var(--mu)'}}>Akıllı egzersiz paneli · manyetik direnç, 8 kademe</div>
+   </div>
+   <div className="flex items-center gap-2 text-xs rounded-full px-3 py-1.5" style=${{border:'1px solid var(--line)',color:'var(--mu)'}}>
+    <span style=${{width:8,height:8,borderRadius:99,background:running?'var(--g)':'#4a5b70',boxShadow:running?'0 0 10px var(--g)':'none'}}/>${running?'Antrenman sürüyor':'Hazır'}
+   </div>
+  </header>
+
+  <div className="grid gap-4 lg:grid-cols-3">
+   <section className="lg:col-span-2 grid gap-4">
+    <div className="panel p-5 sm:p-7">
+     <div className="flex items-start justify-between gap-3 flex-wrap">
+      <div className="text-sm" style=${{color:'var(--mu)'}}>${p?p.name+' · hedef '+p.min+' dk':'Serbest antrenman · hedef 30 dk'}</div>
+      <label className="flex items-center gap-2 text-xs" style=${{color:'var(--mu)'}}>Simülasyon hızı
+       ${[1,10].map(x=>html`<button key=${x} onClick=${()=>setMult(x)} aria-pressed=${mult===x} className="btn rounded-lg px-2.5 py-1 num text-base" style=${{border:'1px solid '+(mult===x?'var(--g)':'var(--line)'),color:mult===x?'var(--g)':'var(--mu)'}}>${x}×</button>`)}
+      </label>
+     </div>
+     <div className="num neon leading-none mt-2" style=${{fontSize:'clamp(4.5rem,17vw,9rem)'}} aria-live="off">${fmt(m.t)}</div>
+     <div className="mt-4 h-2 rounded-full overflow-hidden" style=${{background:'#142034'}}><div className="h-full grad" style=${{width:pct+'%',transition:'width .8s linear',boxShadow:'0 0 14px rgba(45,255,154,.6)'}}/></div>
+     <div className="mt-1.5 flex justify-between text-xs" style=${{color:'var(--mu)'}}><span>%${Math.round(pct)} tamamlandı</span><span>Kalan ${fmt(target-m.t)}</span></div>
+     <div className="mt-5 flex gap-3">
+      <button onClick=${()=>setRunning(r=>!r)} className="btn grad flex-1 sm:flex-none sm:w-56 rounded-xl py-3.5 font-bold flex items-center justify-center gap-2" style=${{color:'#04130c',boxShadow:'0 0 28px rgba(45,255,154,.25)'}}>
+       <${Icon} n=${running?'pause':'play'}/>${running?'Duraklat':(m.t>0?'Devam et':'Başlat')}
+      </button>
+      <button onClick=${reset} className="btn rounded-xl px-5 py-3.5 flex items-center gap-2 font-medium" style=${{border:'1px solid var(--line)'}}><${Icon} n="reset"/>Sıfırla</button>
+     </div>
+    </div>
+
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+     <${Tile} icon="gauge" label="Anlık hız" value=${m.speed.toFixed(1)} unit="km/h"/>
+     <${Tile} icon="rpm" label="Pedal sıklığı" value=${Math.round(m.rpm)} unit="RPM"/>
+     <${Tile} icon="flame" label="Yakılan kalori" value=${m.cal.toFixed(1)} unit="kcal"/>
+     <${Tile} icon="pin" label="Tahmini mesafe" value=${m.dist.toFixed(2)} unit="km"/>
+    </div>
+
+    <div className="panel p-5">
+     <div className="flex items-center justify-between">
+      <div className="flex items-center gap-4">
+       <div style=${{color:'#ff5d73',animation:'beat '+(60/Math.max(40,m.hr))+'s ease-in-out infinite',animationPlayState:running?'running':'paused',filter:'drop-shadow(0 0 10px rgba(255,93,115,.6))'}}><${Icon} n="heart" s=${40}/></div>
+       <div><div className="flex items-baseline gap-2"><span className="num text-6xl leading-none">${Math.round(m.hr)}</span><span style=${{color:'var(--mu)'}}>BPM</span></div>
+        <div className="text-sm font-medium" style=${{color:zc}}>${zn} bölgesi</div></div>
+      </div>
+      <div className="text-xs text-right max-w-[11rem]" style=${{color:'var(--mu)'}}>
+       <div className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 mb-1" style=${{border:'1px solid var(--line)',color:running?'var(--g)':'var(--mu)'}}>${running?'El teması algılandı':'El bekleniyor'}</div>
+       <div>Elini gidondaki nabız sensörlerine yerleştir.</div>
+      </div>
+     </div>
+     <div className="mt-4"><${Ecg} hr=${m.hr} running=${running}/></div>
+     <div className="mt-3 flex items-end gap-[3px] h-10" aria-label="Son nabız değerleri">
+      ${Array.from({length:40}).map((_,i)=>{const v=series[i-(40-series.length)];const h=v?Math.max(6,(v-60)/1.2):4;return html`<div key=${i} className="flex-1 rounded-sm" style=${{height:Math.min(100,h)+'%',background:v?zone(v)[1]:'#142034',opacity:v?.85:1,transition:'height .4s'}}/>`})}
+     </div>
+    </div>
+   </section>
+
+   <aside className="grid gap-4 content-start">
+    <div className="panel p-5">
+     <div className="flex items-center justify-between"><h2 className="font-bold">Direnç kademesi</h2><span className="text-sm" style=${{color:'var(--b)'}}>${LEVELS[res-1]}</span></div>
+     <div className="flex items-center justify-between mt-3">
+      <button onClick=${()=>manual(res-1)} disabled=${res<=1} aria-label="Direnci azalt" className="btn w-12 h-12 rounded-xl grid place-items-center disabled:opacity-30" style=${{border:'1px solid var(--line)'}}><${Icon} n="minus"/></button>
+      <div className="text-center"><div className="num neon text-7xl leading-none">${res}</div><div className="text-xs" style=${{color:'var(--mu)'}}>/ 8</div></div>
+      <button onClick=${()=>manual(res+1)} disabled=${res>=8} aria-label="Direnci artır" className="btn w-12 h-12 rounded-xl grid place-items-center disabled:opacity-30" style=${{border:'1px solid var(--line)'}}><${Icon} n="plus"/></button>
+     </div>
+     <div className="grid grid-cols-8 gap-1.5 mt-4">
+      ${Array.from({length:8}).map((_,i)=>html`<button key=${i} onClick=${()=>manual(i+1)} aria-label=${'Kademe '+(i+1)} className="rounded-md" style=${{height:14+i*5,alignSelf:'end',background:i<res?'linear-gradient(180deg,var(--g),var(--b))':'#142034',boxShadow:i<res?'0 0 10px rgba(45,255,154,.35)':'none',transition:'all .2s'}}/>`)}
+     </div>
+     <input type="range" min="1" max="8" value=${res} onChange=${e=>manual(+e.target.value)} className="w-full mt-3" aria-label="Direnç kademesi"/>
+     <div className="mt-3 text-xs flex justify-between" style=${{color:'var(--mu)'}}><span>Zorluk</span><span>${Math.round(m.w)} W · ${(m.w*0.0597).toFixed(1)} kcal/dk</span></div>
+     <div className="mt-1 h-1.5 rounded-full overflow-hidden" style=${{background:'#142034'}}><div className="h-full grad" style=${{width:diffPct+'%',transition:'width .6s'}}/></div>
+     <p className="text-xs mt-3" style=${{color:'var(--mu)'}}>Kademe ve tempo yükseldikçe güç çıktısı ve kalori yakımı artar.</p>
+    </div>
+
+    <div className="panel p-5">
+     <h2 className="font-bold mb-3">Hazır programlar</h2>
+     <div className="grid gap-2">
+      ${PROGRAMS.map(pr=>html`<button key=${pr.id} onClick=${()=>pick(pr)} aria-pressed=${prog===pr.id} className="btn text-left rounded-xl p-3 flex items-center gap-3" style=${{border:'1px solid '+(prog===pr.id?'var(--g)':'var(--line)'),background:prog===pr.id?'rgba(45,255,154,.07)':'transparent'}}>
+       <div className="w-10 h-10 rounded-lg grid place-items-center shrink-0" style=${{background:'#142034',color:prog===pr.id?'var(--g)':'var(--b)'}}><${Icon} n=${pr.icon}/></div>
+       <div className="flex-1 min-w-0"><div className="font-medium text-sm">${pr.name} <span style=${{color:'var(--mu)'}} className="font-normal">· ${pr.en}</span></div><div className="text-xs truncate" style=${{color:'var(--mu)'}}>${pr.desc}</div></div>
+       <div className="num text-xl">${pr.min}<span className="text-xs" style=${{color:'var(--mu)'}}> dk</span></div>
+      </button>`)}
+     </div>
+    </div>
+   </aside>
+  </div>
+
+  <section className="grid gap-4 lg:grid-cols-3 mt-4">
+   <div className="panel p-5">
+    <div className="flex items-center justify-between mb-2"><h2 className="font-bold">Bu hafta</h2>
+     <div className="flex gap-1 text-xs">${[['cal','Kalori'],['dist','Mesafe']].map(([k,l])=>html`<button key=${k} onClick=${()=>setMode(k)} aria-pressed=${mode===k} className="btn rounded-lg px-3 py-1.5" style=${{border:'1px solid '+(mode===k?'var(--g)':'var(--line)'),color:mode===k?'var(--g)':'var(--mu)'}}>${l}</button>`)}</div></div>
+    <${Chart} mode=${mode} cal=${week.cal} dist=${week.dist} liveCal=${m.cal} liveDist=${m.dist}/>
+    <div className="text-sm mt-1" style=${{color:'var(--mu)'}}>Toplam <span className="text-white font-bold">${mode==='cal'?Math.round(totCal)+' kcal':totDist.toFixed(1)+' km'}</span></div>
+   </div>
+   <div className="panel p-5 lg:col-span-2">
+    <div className="flex items-center justify-between mb-3"><h2 className="font-bold flex items-center gap-2"><${Icon} n="trophy"/>Başarılar</h2><span className="text-sm" style=${{color:'var(--mu)'}}>${ACH.filter(a=>a.ok).length}/${ACH.length} açık</span></div>
+    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+     ${ACH.map(a=>html`<div key=${a.id} className="rounded-xl p-3.5" style=${{border:'1px solid '+(a.ok?'rgba(45,255,154,.45)':'var(--line)'),background:a.ok?'rgba(45,255,154,.06)':'transparent',boxShadow:a.ok?'0 0 22px rgba(45,255,154,.08)':'none'}}>
+      <div className="flex items-center justify-between"><div className="w-9 h-9 rounded-lg grid place-items-center" style=${{background:a.ok?'linear-gradient(135deg,var(--g),var(--b))':'#142034',color:a.ok?'#04130c':'#5d7089'}}><${Icon} n=${a.ok?a.icon:'lock'}/></div>
+       <span className="text-[11px]" style=${{color:a.ok?'var(--g)':'var(--mu)'}}>${a.ok?'Açık':'%'+Math.min(99,Math.round(a.pr*100))}</span></div>
+      <div className="font-bold text-sm mt-2.5" style=${{opacity:a.ok?1:.75}}>${a.name}</div>
+      <div className="text-xs mt-0.5" style=${{color:'var(--mu)'}}>${a.desc}</div>
+      ${!a.ok&&html`<div className="mt-2 h-1 rounded-full overflow-hidden" style=${{background:'#142034'}}><div className="h-full" style=${{width:Math.min(100,a.pr*100)+'%',background:'var(--b)'}}/></div>`}
+     </div>`)}
+    </div>
+   </div>
+  </section>
+  <p className="text-center text-xs mt-6" style=${{color:'#4f6178'}}>Bu panel bir simülatördür; gerçek bisiklet verisi okumaz.</p>
+
+  ${toast&&html`<div className="toast fixed left-1/2 -translate-x-1/2 z-50 rounded-xl px-4 py-3 text-sm w-[min(92vw,26rem)]" style=${{bottom:'calc(env(safe-area-inset-bottom,0px) + 16px)',background:'#0f1b2b',border:'1px solid var(--g)',boxShadow:'0 10px 40px rgba(0,0,0,.6)'}} role="status">
+   <div className="font-bold neon">${toast.k}</div><div style=${{color:'var(--mu)'}}>${toast.d}</div></div>`}
+ </main>`;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(html`<${App}/>`);
+</script>
+<script>if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){})})}</script>
+</body>
+</html>
